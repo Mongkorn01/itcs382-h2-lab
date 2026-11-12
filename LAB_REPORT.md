@@ -33,22 +33,42 @@ Ans: They are gone because there is no persistent storage.
 ParcelRepository repository = new InMemoryParcelRepository();
 ```
 
-0.6 Commit of the switch to H2:
+0.6 Commit of the switch to H2: 6d69d5c
 
 0.7 Output of `SELECT * FROM PARCEL;` after you stored two parcels:
 
 ```text
-
+CODE  | STUDENT_ID | PARCEL_SIZE | STATUS | LOCKER_NUMBER
+P1001 | S1001      | SMALL       | STORED | 1
+P1002 | S1002      | LARGE       | STORED | 3
+(2 rows, 27 ms)
 ```
 
 0.8 Explain why ParcelPoint could not start while the H2 Shell was open, and identify the class that wrote the message `Cannot create the PARCEL table`.
+Ans: ParcelPoint could not start because the H2 Shell in the first terminal still had the database open. H2 is an embedded database, so it belongs to the program that opened it and locks the file parcelpoint.mv.db, and a second program cannot open it at the same time. The class H2ParcelRepository wrote the first line, "Cannot create the PARCEL table", when it caught the SQLException from H2, and the "Caused by" line saying "Database may be already in use" came from H2 itself.
 
-0.9 Explain why `staff` shows no parcel while `find` shows each one, and why all three lockers look free.
+0.9 Explain why `staff` shows no parcel while `find` shows each one, and why all three lockers look free. 
+Ans: staff uses findAll(), which has not been implemented, while find shows findByCode is fully written and queries H2 directly. All three lockers look free because the program use findAll() at start-up to retrieve stored parcels from the database into its locker. ince findAll() returns no parcels, no locker is refilled. 
 
 0.11 Your findAll method:
 
 ```java
-
+    @Override
+    public List<Parcel> findAll() {
+        String sql = "SELECT * FROM PARCEL ORDER BY CODE";
+        List<Parcel> parcels = new ArrayList<>();
+        try (Connection connection = connect();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+            try (ResultSet row = statement.executeQuery()) {
+                while (row.next()) {
+                    parcels.add(toParcel(row));
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Cannot read the parcels", e);
+        }
+        return parcels;
+    }
 ```
 
 Commit that adds findAll:
