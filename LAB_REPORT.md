@@ -13,22 +13,24 @@ Repository URL: https://github.com/Mongkorn01/itcs382-h2-lab
 
 ## Part 0. From a store in memory to H2
 
-Commit of the starter, before any change:
+Commit of the starter, before any change: 5a5c957
 
-0.3 Your prediction for `staff`, written before the second run:
+0.3 Your prediction for `staff`, written before the second run: Free lockers: 1
 
 Output of the second run, for `staff` and `quit`:
 
 ```text
-
+Free lockers: 3
 ```
 
 State in one sentence where you think the parcels of the first run were kept.
 
+Ans: They are gone because there is no persistent storage.
+
 0.5 The line of Main that you would change to keep the parcels somewhere else:
 
 ```java
-
+ParcelRepository repository = new InMemoryParcelRepository();
 ```
 
 0.6 Commit of the switch to H2:
