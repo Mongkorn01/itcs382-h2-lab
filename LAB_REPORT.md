@@ -71,15 +71,20 @@ Ans: staff uses findAll(), which has not been implemented, while find shows find
     }
 ```
 
-Commit that adds findAll:
+Commit that adds findAll: 08d2913
 
 0.12 Output of `SELECT * FROM PARCEL;` after the pickup:
 
 ```text
-
+CODE  | STUDENT_ID | PARCEL_SIZE | STATUS    | LOCKER_NUMBER
+P1001 | S1001      | SMALL       | PICKED_UP | null
+P1002 | S1002      | LARGE       | STORED    | 3
+(2 rows, 25 ms)
 ```
 
 0.13 Optional. Describe what `find P9999'OR'1'='1` showed while the SQL was joined from strings, and what it showed after you put the placeholder back.
+
+```skipped```
 
 ## Part A. Model the design
 
@@ -91,11 +96,20 @@ flowchart TB
     cli
     service
     domain
-    storage
+    storage["storage, accesses the data store"]
     cli --> service
+    cli --> domain
+    service --> domain
+    service --> storage
+    storage --> domain
+    parcelpoint --> cli
+    parcelpoint --> service
+    parcelpoint --> storage
 ```
 
 State whether cli depends on storage, and explain why.
+
+Ans: No, cli handles input from users and only access storage through service.
 
 A2 Complete the class diagram of the data management layer with ParcelService, the interface ParcelRepository with its three operations, and the two classes that implement it.
 
@@ -104,7 +118,28 @@ classDiagram
     class ParcelService
     class ParcelRepository {
         <<interface>>
+        save(Parcel parcel) void
+        findByCode(String code) Optional~Parcel~
+        findAll() List~Parcel~
+        
     }
+    ParcelService --> ParcelRepository
+    
+    class InMemoryParcelRepository {
+        save(Parcel parcel) void
+        findByCode(String code) Optional~Parcel~
+        findAll() List~Parcel~
+    }
+    class H2ParcelRepository {
+        - connect() Connection
+        save(Parcel parcel) void
+        findByCode(String code) Optional~Parcel~
+        findAll() List~Parcel~
+        - toParcel(ResultSet row) Parcel
+
+    }
+    ParcelRepository <|.. H2ParcelRepository
+    ParcelRepository <|.. InMemoryParcelRepository
 ```
 
 A3 Draw a sequence diagram for the command `store P1003 S1003 MEDIUM`, from the staff member to the repository. Show each message as an operation of the class that receives it.
@@ -113,23 +148,44 @@ A3 Draw a sequence diagram for the command `store P1003 S1003 MEDIUM`, from the 
 sequenceDiagram
     actor Staff
     participant cli as :ParcelCommandLine
+    participant service as :ParcelService
+    participant locker as :Locker
+    participant parcel as :Parcel
+    participant repo as :ParcelRepository
     Staff->>cli: store P1003 S1003 MEDIUM
+    cli->>service: store(parcel)
+    loop for each locker until one fits
+        service->>locker: fits(parcel)
+    end
+    service->>locker: setParcel(parcel)
+    service->>parcel: storeIn(locker.getNumber())
+    service->>repo: save(parcel)
 ```
 
 Explain why the last lifeline is the interface ParcelRepository rather than H2ParcelRepository.
+
+Ans: The last lifeline is ParcelRepository because ParcelService only knows the interface, which is the type of its field. Main creates H2ParcelRepository and passes it to the service through its constructor, so the service never names H2ParcelRepository.
 
 ## Part B. Design questions
 
 1. Identify the files that you changed to move from the store in memory to H2, and explain why no other class had to change. Use the terms of this course.
 
+Ans: Only the Main.java was changed, its import and the line that creates the repository. Since the program has low coupling, we had to change only one place.
+
 2. The PARCEL table stores the size of a parcel as SMALL, MEDIUM or LARGE rather than as 1, 2 or 3. Identify the type of connascence between ParcelSize and the table in each case, and explain which one is weaker.
+
+Ans: Connascence of name, this make it easier to make changes (ParcelSize.valueOf turns the text back into a size). With 1, 2 and 3, they are connascent by convention. Connascence of name is weaker, so it is easier to see and safer to change.
 
 3. Project Phase 2 asks for a data store that needs no separate server. Explain why an embedded database such as H2 meets this rule, and describe the limit of an embedded database that Step 0.8 showed.
 
+Ans: H2 meets the rule because it is a library that runs inside the program and keeps its data in a file, so no separate server is required. The limit from Step 0.8 is that the database belongs to the program that opened it. H2 locks the file, so a second program could not open it while the H2 Shell held it
+
 4. State the data store that you would choose for your Project Phase 2 team, files or an embedded database, the requirement that drives the choice, and the package that will access it.
 
-## AI usage declaration
+Ans: I would choose H2 for our Phase 2 project. The requirement that drives this choice is that our science plan data must be searched and updated by field, such as by status, and each plan needs a unique ID. H2 handles this with SQL queries and a primary key, while files would need us to write that logic ourselves. H2 also needs no separate server, as Phase 2 requires. The package that accesses the data store is storage, which holds the interface SciencePlanRepository and its implementation H2SciencePlanRepository.
 
+## AI usage declaration
 | AI tool and exact model | Date | Purpose | Files or answers it produced or changed | How you checked its output |
 | --- | --- | --- | --- | --- |
-| | | | | |
+| Claude, Claude Sonnet 5.5 (claude.ai) | 12 Nov 2026 | Step-by-step guidance for the lab setup and Part 0, and review of my draft answers | Corrected wording of my answers for 0.5, 0.8, 0.9, A1 and A3, and Part B Q1 to Q4, and fixed errors in my `findAll` method | Compared each answer with the code (`ParcelService`, `H2ParcelRepository`, `Main`), built and ran the program |
+| Claude, Claude Sonnet 5.5 (claude.ai) | 12 Nov 2026 | Review of the Mermaid diagrams | Corrected class diagram (A2) and sequence diagram (A3) | Checked every arrow against the imports and `ParcelService.store` |
